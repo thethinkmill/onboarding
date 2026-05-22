@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>The Think Mill — Team Onboarding</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎵</text></svg>" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Urbanist:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
@@ -563,7 +564,7 @@
 // ═══════════════════════════════════════════════════════
 // CONFIG — paste your Apps Script URL here when ready
 // ═══════════════════════════════════════════════════════
-const GOOGLE_SHEET_URL = '';
+const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbyaF6Nl6iJgrCfrW0ZQIvTTkBAQ7gmKOB_BI5jtEUX22ZyVua0xw5-BCMT2wmJgIUYb/exec';
 const ADMIN_PASSWORD = 'ThinkMill2024!';
 
 // ═══════════════════════════════════════════════════════
@@ -703,17 +704,43 @@ function showAdminLogin() { showPage('page-admin-login'); }
 // ═══════════════════════════════════════════════════════
 // GATE
 // ═══════════════════════════════════════════════════════
-function startOnboarding() {
+async function startOnboarding() {
   const name = document.getElementById('gate-name').value.trim();
   const email = document.getElementById('gate-email').value.trim().toLowerCase();
   if (!name) { alert('Please enter your name.'); return; }
   if (!email || !email.includes('@')) { alert('Please enter a valid email address.'); return; }
+
+  const btn = document.querySelector('#page-gate .btn-primary');
+  btn.textContent = 'Loading your progress…';
+  btn.disabled = true;
+
   const data = getData();
   if (!data[email]) {
     data[email] = { name, email, joined: new Date().toISOString(), modules: {} };
     saveData(data);
   }
   currentUser = { name: data[email].name, email };
+
+  // Try to restore progress from Google Sheets
+  if (GOOGLE_SHEET_URL) {
+    try {
+      const res = await fetch(GOOGLE_SHEET_URL + '?action=getProgress&email=' + encodeURIComponent(email));
+      const json = await res.json();
+      if (json.completedModules && json.completedModules.length > 0) {
+        const fresh = getData();
+        if (!fresh[email]) fresh[email] = { name, email, joined: new Date().toISOString(), modules: {} };
+        json.completedModules.forEach(modId => {
+          if (!fresh[email].modules[modId]) {
+            fresh[email].modules[modId] = { completed: json.timestamps[modId] || new Date().toISOString() };
+          }
+        });
+        saveData(fresh);
+      }
+    } catch(e) { /* silent fail — localStorage still works */ }
+  }
+
+  btn.textContent = 'Begin onboarding →';
+  btn.disabled = false;
   renderLearnerHome();
   showPage('page-learner');
 }
@@ -860,7 +887,7 @@ function openModule(modId) {
           Do not check the boxes below until you have sent your completed agreement to Andy.
         </div>`;
       qContainer.appendChild(div);
-      return;
+
     } else if (q.type === 'yn') {
       div.innerHTML = `<div class="q-text">${q.text}${reqStar}</div>
         <div class="q-options">
@@ -876,6 +903,8 @@ function openModule(modId) {
         const el = div.querySelector(`input[value="${saved}"]`);
         if (el) { el.checked = true; highlightOptIn(div, qi, saved); }
       }
+      qContainer.appendChild(div);
+
     } else if (q.type === 'checks') {
       let checksHtml = `<div class="q-text">${q.text}${reqStar}</div><div class="q-options">`;
       q.options.forEach((opt, oi) => {
@@ -884,23 +913,47 @@ function openModule(modId) {
       });
       checksHtml += '</div>';
       div.innerHTML = checksHtml;
+      qContainer.appendChild(div);
+
     } else if (q.type === 'text') {
       div.innerHTML = `<div class="q-text">${q.text}${reqStar}</div>
         <input class="q-textinput" type="text" id="q${qi}-text" placeholder="${q.placeholder || ''}" ${completed ? 'disabled' : ''} value="${savedAnswers['q'+qi] || ''}" />`;
+      qContainer.appendChild(div);
     }
-    qContainer.appendChild(div);
 
-    // Inject calendar setup block after question 2 (index 1) for Module 2
+    // Inject mileage resource block after question index 2 in Module 1
+    if (qi === 2 && modId === 'm1') {
+      const mileageDiv = document.createElement('div');
+      mileageDiv.style.cssText = 'margin: 8px 0 16px;';
+      mileageDiv.innerHTML = `
+        <div style="background:var(--warn-light); border:1px solid #e8d5a8; border-radius:var(--radius); padding:14px 16px;">
+          <div style="font-size:12px; font-weight:600; color:var(--warn); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px;">📹 Reference videos</div>
+          <div style="font-size:13px; color:var(--black); margin-bottom:10px; line-height:1.6;">
+            These videos walk through how mileage reimbursement works. <strong>Note: they are outdated</strong> — the mileage rate shown in the videos is no longer current. 
+            The correct rate is <strong>$0.725/mile (IRS 2026)</strong> as stated in your acknowledgement above.
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <a href="https://drive.google.com/file/d/1WYOUvnxpwleip9P6XNBPnkBF9KmcUQNE/view?usp=sharing" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--accent); font-weight:500; text-decoration:none;">
+              ▶ Mileage reference — DJs ↗
+            </a>
+            <a href="https://drive.google.com/file/d/19fS9KARWjI22DekUhA4RtFqBRSI3HF21/view?usp=sharing" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--accent); font-weight:500; text-decoration:none;">
+              ▶ Mileage reference — DJ Assistants, Photo Booth, Tech & Production ↗
+            </a>
+          </div>
+        </div>`;
+      qContainer.appendChild(mileageDiv);
+    }
+
+    // Inject calendar setup block after question index 1 in Module 2
     if (qi === 1 && mod.extra) {
       const extraDiv = document.createElement('div');
-      extraDiv.id = 'mod-extra';
       extraDiv.style.cssText = 'margin: 8px 0 16px;';
       extraDiv.innerHTML = mod.extra;
       qContainer.appendChild(extraDiv);
     }
   });
 
-  // Actions / completed state
+    // Actions / completed state
   const actionsDiv = document.getElementById('quiz-actions');
   const resultDiv = document.getElementById('quiz-result');
   resultDiv.className = 'quiz-result';
@@ -939,36 +992,7 @@ function submitModule(modId) {
 
   mod.questions.forEach((q, qi) => {
     if (q.type === 'contractor') {
-      div.innerHTML = `
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
-          <div style="font-size:15px;">📄</div>
-          <div class="q-text" style="margin:0;">Contractor Agreement <span style="color:var(--danger)">*</span></div>
-        </div>
-        <div style="font-size:13px; color:var(--muted); margin-bottom:16px; line-height:1.6;">
-          Before signing below, you must complete and return the Contractor Agreement. Follow the three steps below.
-        </div>
-        <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
-          <div style="display:flex; align-items:flex-start; gap:12px; background:var(--cream); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px;">
-            <div style="width:22px; height:22px; border-radius:50%; background:var(--accent); color:var(--white); font-size:11px; font-weight:600; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">1</div>
-            <div style="flex:1;">
-              <div style="font-size:13px; font-weight:500; margin-bottom:6px;">Open the agreement</div>
-              <a href="https://drive.google.com/file/d/1anyi_wk3TEevsJZ1HBWhmtYCpcWnExyN/view?usp=sharing" target="_blank" rel="noopener" class="btn btn-sm" style="text-decoration:none;">Open Contractor Agreement ↗</a>
-            </div>
-          </div>
-          <div style="display:flex; align-items:flex-start; gap:12px; background:var(--cream); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px;">
-            <div style="width:22px; height:22px; border-radius:50%; background:var(--accent); color:var(--white); font-size:11px; font-weight:600; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">2</div>
-            <div style="font-size:13px;"><span style="font-weight:500;">Make a copy</span> — go to <strong>File → Make a copy</strong> in Google Drive, then fill it out completely.</div>
-          </div>
-          <div style="display:flex; align-items:flex-start; gap:12px; background:var(--cream); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px;">
-            <div style="width:22px; height:22px; border-radius:50%; background:var(--accent); color:var(--white); font-size:11px; font-weight:600; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:1px;">3</div>
-            <div style="font-size:13px;"><span style="font-weight:500;">Email your completed copy</span> to <a href="mailto:andy@thethinkmill.com" style="color:var(--accent); font-weight:500;">andy@thethinkmill.com</a> before proceeding.</div>
-          </div>
-        </div>
-        <div style="background:var(--warn-light); border:1px solid #e8d5a8; border-radius:var(--radius); padding:10px 14px; font-size:12px; color:var(--warn); line-height:1.5;">
-          Do not check the boxes below until you have sent your completed agreement to Andy.
-        </div>`;
-      qContainer.appendChild(div);
-      return;
+      // informational block — no validation needed
     } else if (q.type === 'yn') {
       const sel = document.querySelector(`input[name="q${qi}"]:checked`);
       if (!sel && q.required) { valid = false; errMsg = 'Please answer all required questions.'; }
@@ -996,16 +1020,24 @@ function submitModule(modId) {
     return;
   }
 
-  // Save progress
+  // Save progress locally
   const data = getData();
   const u = data[currentUser.email];
-  u.modules[modId].completed = new Date().toISOString();
+  if (!u.modules) u.modules = {};
+  if (!u.modules[modId]) u.modules[modId] = {};
+  const completedAt = new Date().toISOString();
+  u.modules[modId].completed = completedAt;
   u.modules[modId].answers = answers;
   saveData(data);
 
   // Send to Google Sheets if configured
   if (GOOGLE_SHEET_URL) {
-    const answerSummary = mod.questions.map((q, qi) => `${q.text.substring(0,40)}…: ${JSON.stringify(answers['q'+qi])}`).join(' | ');
+    const localData = getData();
+    const videoOpened = localData[currentUser.email]?.modules?.[modId]?.videoOpened || 'Not recorded';
+    const answerSummary = mod.questions
+      .filter(q => q.type !== 'contractor')
+      .map((q, qi) => `${(q.text||'').substring(0,40)}…: ${JSON.stringify(answers['q'+qi]||'')}`)
+      .join(' | ');
     fetch(GOOGLE_SHEET_URL, {
       method: 'POST',
       mode: 'no-cors',
@@ -1014,6 +1046,9 @@ function submitModule(modId) {
         name: currentUser.name,
         email: currentUser.email,
         module: mod.num + ' — ' + mod.title,
+        moduleId: modId,
+        completedAt: completedAt,
+        videoOpened: videoOpened,
         answers: answerSummary,
         signature: signature
       })
