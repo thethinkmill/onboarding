@@ -1033,11 +1033,18 @@ function submitModule(modId) {
   // Send to Google Sheets if configured
   if (GOOGLE_SHEET_URL) {
     const localData = getData();
-    const videoOpened = localData[currentUser.email]?.modules?.[modId]?.videoOpened || 'Not recorded';
-    const answerSummary = mod.questions
-      .filter(q => q.type !== 'contractor')
-      .map((q, qi) => `${(q.text||'').substring(0,40)}…: ${JSON.stringify(answers['q'+qi]||'')}`)
-      .join(' | ');
+    const videoOpened = localData[currentUser.email]?.modules?.[modId]?.videoOpened || null;
+
+    // Only collect questions answered "No"
+    // Build index map accounting for all question types including contractor
+    const noAnswers = [];
+    mod.questions.forEach((q, qi) => {
+      if (q.type === 'yn' && answers['q'+qi] === 'no') {
+        noAnswers.push(q.text.substring(0, 80));
+      }
+    });
+    const noSummary = noAnswers.length > 0 ? noAnswers.join(' | ') : 'All acknowledged';
+
     fetch(GOOGLE_SHEET_URL, {
       method: 'POST',
       mode: 'no-cors',
@@ -1045,11 +1052,11 @@ function submitModule(modId) {
       body: JSON.stringify({
         name: currentUser.name,
         email: currentUser.email,
-        module: mod.num + ' — ' + mod.title,
         moduleId: modId,
+        moduleName: mod.num + ' — ' + mod.title,
         completedAt: completedAt,
         videoOpened: videoOpened,
-        answers: answerSummary,
+        noAnswers: noSummary,
         signature: signature
       })
     }).catch(() => {});
