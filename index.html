@@ -674,13 +674,25 @@ const MODULES = [
     id: 'm4',
     num: 'Module 4',
     title: 'Invoicing, incident reports + anonymous feedback',
-    desc: 'How to invoice correctly, file incident reports, and give feedback.',
+    desc: 'How to invoice correctly, file incident reports, and give anonymous feedback.',
     loomUrl: '',
-    canvaUrl: '',
-    quizDesc: 'Coming soon — this module will be added shortly.',
-    quizNotice: '',
-    questions: [],
-    comingSoon: true
+    canvaUrl: 'https://canva.link/wbmz3s4vevd0vun',
+    quizDesc: 'Confirm your understanding of invoicing, incident reporting, and feedback before your check-in meeting.',
+    quizNotice: 'Select Yes to acknowledge each statement. This is the final module — you are almost done!',
+    questions: [
+      { type: 'yn', text: 'I know where to find the invoice template (<a href="https://www.second-song.com/help" target="_blank" style="color:var(--accent);font-weight:500;">www.second-song.com/help</a> → "Invoice Template").', required: true },
+      { type: 'yn', text: 'I understand what information to include on my invoice: my details, event details, and banking info on the first invoice only.', required: true },
+      { type: 'yn', text: 'I know to attach my W9 on my first invoice only.', required: true },
+      { type: 'yn', text: 'I understand that invoices are sent to <a href="mailto:ap@thethinkmill.com" style="color:var(--accent);font-weight:500;">ap@thethinkmill.com</a> and that the first payment takes 8–10 days, then approximately 5 days after that.', required: true },
+      { type: 'yn', text: 'I know when to file an incident report: if something goes wrong at an event (gear damage, safety issue, theft, or conflict).', required: true },
+      { type: 'yn', text: 'I know how to access the incident report form (<a href="https://www.second-song.com/help" target="_blank" style="color:var(--accent);font-weight:500;">www.second-song.com/help</a> → "Incident Report").', required: true },
+      { type: 'yn', text: 'I am aware of the anonymous feedback form (<a href="https://www.second-song.com/help" target="_blank" style="color:var(--accent);font-weight:500;">www.second-song.com/help</a> → "Anonymous Feedback") and can use it any time to share suggestions, concerns, or shout-outs.', required: true },
+      { type: 'checks', text: 'Final confirmation:', required: true, options: [
+        'I understand how to submit invoices and get paid',
+        'I have marked my calendar availability and shared it with the team'
+      ]},
+      { type: 'text', text: 'Please type your full name below to digitally sign and complete your onboarding:', required: true, placeholder: 'Your full name' }
+    ]
   }
 ];
 
@@ -781,8 +793,8 @@ function renderLearnerHome() {
   document.getElementById('prog-fill').style.width = (done / 4 * 100) + '%';
   document.getElementById('learner-greeting').textContent = 'Hi, ' + firstName + ' 👋';
   document.getElementById('learner-subtext').textContent =
-    done === 4 ? 'You\'ve completed all modules. You\'re ready to go!' :
-    done === 0 ? 'Start with Module 1 below. Each module unlocks once you complete the previous one.' :
+    done === 4 ? '🎉 You have completed all four modules! You are ready for your check-in meeting.' :
+    done === 0 ? 'Start with Module 1 below. Complete all four modules to be ready for your check-in meeting.' :
     done + ' of 4 modules complete. Keep going!';
 
   const list = document.getElementById('modules-list');
@@ -796,11 +808,11 @@ function renderLearnerHome() {
 
     const item = document.createElement('div');
     item.className = 'module-item' + (locked ? ' locked' : '') + (completed ? ' done' : '') + (isNext ? ' unlocked' : '');
-    if (!locked && !mod.comingSoon) item.onclick = () => openModule(mod.id);
+    if (!locked) item.onclick = () => openModule(mod.id);
 
     let statusHtml = '';
     if (completed) statusHtml = '<span class="tag tag-done">✓ Complete</span>';
-    else if (mod.comingSoon) statusHtml = '<span class="tag tag-locked">Coming soon</span>';
+    
     else if (locked) statusHtml = '<span class="tag tag-locked">Locked</span>';
     else statusHtml = '<span class="tag tag-next">Up next →</span>';
 
@@ -1073,8 +1085,11 @@ function submitModule(modId) {
     }).catch(() => {});
   }
 
+  const isLastModule = modId === 'm4';
   resultDiv.className = 'quiz-result pass show';
-  resultDiv.textContent = '✓ Module complete! Heading back to your modules…';
+  resultDiv.textContent = isLastModule
+    ? '🎉 You have completed all modules! You are ready for your check-in meeting. Welcome to the team!'
+    : '✓ Module complete! Heading back to your modules…';
   document.getElementById('quiz-actions').innerHTML = '';
   resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
@@ -1103,7 +1118,7 @@ function renderAdminTable() {
   );
 
   const total = rows.length;
-  const fullyDone = rows.filter(u => MODULES.filter(m => !m.comingSoon).every(m => u.modules && u.modules[m.id] && u.modules[m.id].completed)).length;
+  const fullyDone = rows.filter(u => MODULES.every(m => u.modules && u.modules[m.id] && u.modules[m.id].completed)).length;
   const inProg = rows.filter(u => {
     const d = Object.values(u.modules || {}).filter(m => m.completed).length;
     return d > 0 && d < 3;
